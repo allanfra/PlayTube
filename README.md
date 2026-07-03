@@ -17,7 +17,7 @@ width="130">
 width="130">
 <img src= "fastlane/metadata/android/en-US/Images/phoneScreenshots/WhatsApp Image 2026-07-03 at 11.41.27 PM (1).jpeg"
 width="130">
-<img src= "fastlane/metadata/android/en-US/Images/phoneScreenshots/WhatsApp Image 2026-07-03 at 11.41.27 PM (1).jpeg"
+<img src= "fastlane/metadata/android/en-US/Images/phoneScreenshots/WhatsApp Image 2026-07-03 at 11.41.28 PM (2).jpeg"
 width="130">
 
 Enjoy a premium video experience  with no ads or tracking. 
