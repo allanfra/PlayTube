@@ -13,7 +13,7 @@
   Fast, private, and feature-rich YouTube client for Android.
 </p>
 
-## Downloads
+## Download
 
 <p align="center">
 
