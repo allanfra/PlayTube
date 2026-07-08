@@ -8,6 +8,7 @@ package com.arslandaim.playtube.ui.components
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -104,8 +105,12 @@ fun VideoCardSkeleton() {
 
 @Composable
 fun VideoListSkeleton() {
-    Column {
-        repeat(5) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp)
+    ) {
+        items(5) {
             VideoCardSkeleton()
         }
     }

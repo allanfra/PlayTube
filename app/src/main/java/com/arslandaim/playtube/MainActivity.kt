@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.IntOffset
 import coil3.compose.AsyncImage
 import com.arslandaim.playtube.domain.model.VideoItem
 import com.arslandaim.playtube.ui.screens.player.MiniPlayerManager
+import com.arslandaim.playtube.ui.screens.player.PlayerOverlay
 import com.arslandaim.playtube.utils.ConnectivityObserver
 import javax.inject.Inject
 import kotlin.math.roundToInt
@@ -114,7 +115,7 @@ class MainActivity : ComponentActivity() {
 
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
-                val isMinimized by miniPlayerManager.isMinimized.collectAsState()
+                val isExpanded by miniPlayerManager.isExpanded.collectAsState()
                 val currentVideo by miniPlayerManager.currentVideo.collectAsState()
 
                 isPlayerScreen = currentRoute?.startsWith("player") == true
@@ -224,75 +225,70 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
-                    },
-                    bottomBar = {
+                    }
+                ) { innerPadding ->
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        // Content Area
                         Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = MaterialTheme.colorScheme.surface,
-                            tonalElevation = 3.dp
+                            modifier = Modifier.fillMaxSize(),
+                            color = MaterialTheme.colorScheme.background
                         ) {
-                            Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
-                                // MiniPlayer stays stable above navigation bars
-                                val showMiniPlayer = isMinimized && currentVideo != null && !isInPipModeState.value && !isPlayerScreen
-                                AnimatedVisibility(
-                                    visible = showMiniPlayer,
-                                    enter = slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = tween(400)
-                                    ) + fadeIn(animationSpec = tween(400)),
-                                    exit = slideOutVertically(
-                                        targetOffsetY = { it },
-                                        animationSpec = tween(400)
-                                    ) + fadeOut(animationSpec = tween(400))
-                                ) {
-                                    Column {
-                                        MiniPlayer(
-                                            video = currentVideo ?: return@Column,
-                                            onClick = {
-                                                val video = currentVideo ?: return@MiniPlayer
-                                                miniPlayerManager.maximize()
-                                                navController.navigate(Screen.Player.createRoute(video.id, video.title, video.thumbnailUrl)) {
-                                                    launchSingleTop = true
-                                                }
-                                            },
-                                            onDismiss = { 
-                                                miniPlayerManager.close {
-                                                    // Stop playback when mini-player is closed
-                                                    playerViewModel.player.stop()
-                                                    playerViewModel.player.clearMediaItems()
-                                                }
-                                            }
-                                        )
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                    }
-                                }
-                                // Animated height Box for the bottom navigation bar
-                                if (showBars || barsVisibilityProgress > 0f) {
+                            // Only apply top padding from scaffold, content flows to the bottom edge
+                            Box(modifier = Modifier.padding(top = innerPadding.calculateTopPadding())) {
+                                NavGraph(
+                                    navController = navController,
+                                    onBarsVisibilityChange = { isBarsVisible = it }
+                                )
+                            }
+                        }
+
+                        // Floating Bottom Bar Overlay
+                        if (showBars || barsVisibilityProgress > 0f) {
+                            Surface(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .graphicsLayer {
+                                        translationY = 80.dp.toPx() * (1f - barsVisibilityProgress)
+                                        alpha = barsVisibilityProgress
+                                    },
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                                tonalElevation = 3.dp
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
                                     Box(modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(64.dp * barsVisibilityProgress)
-                                        .clipToBounds()
+                                        .height(64.dp)
                                     ) {
-                                        Box(modifier = Modifier.graphicsLayer {
-                                            translationY = 64.dp.toPx() * (1f - barsVisibilityProgress)
-                                            alpha = barsVisibilityProgress
-                                        }) {
-                                            PlayTubeBottomBar(navController = navController)
-                                        }
+                                        PlayTubeBottomBar(navController = navController)
                                     }
                                 }
                             }
                         }
                     }
-                ) { innerPadding ->
-                    // Scaffold's innerPadding will now animate smoothly as topBar and bottomBar heights change.
-                    Surface(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-                        NavGraph(
-                            navController = navController,
-                            onBarsVisibilityChange = { isBarsVisible = it }
-                        )
-                    }
                 }
+
+                PlayerOverlay(
+                    isExpanded = isExpanded,
+                    currentVideo = currentVideo,
+                    bottomBarHeight = 64.dp * barsVisibilityProgress,
+                    viewModel = playerViewModel,
+                    onClose = {
+                        miniPlayerManager.close {
+                            playerViewModel.stopPlayback()
+                        }
+                    },
+                    onMaximize = { miniPlayerManager.maximize() },
+                    onMinimize = { miniPlayerManager.minimize(currentVideo!!) },
+                    onChannelClick = { channelUrl ->
+                        miniPlayerManager.minimize(currentVideo!!)
+                        navController.navigate(Screen.Channel.createRoute(channelUrl))
+                    },
+                    onVideoClick = { video ->
+                        playerViewModel.loadVideo(video)
+                    },
+                    content = { /* PlayerView is handled inside PlayerOverlay/PlayerScreen for now(I will do something later) */ }
+                )
             }
         }
     }
@@ -301,6 +297,7 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         // If not in PiP mode, pause the player.
         // This stops audio from playing in the background when minimized.
+        // We also check if we are NOT in the process of entering PiP
         if (!isInPictureInPictureMode) {
             playerViewModel.player.pause()
         }
@@ -323,6 +320,7 @@ class MainActivity : ComponentActivity() {
         newConfig: Configuration
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        android.util.Log.d("PiP", "onPictureInPictureModeChanged: isInPip=$isInPictureInPictureMode")
         isInPipModeState.value = isInPictureInPictureMode
         if (isInPictureInPictureMode) {
             wasInPip = true
@@ -330,30 +328,30 @@ class MainActivity : ComponentActivity() {
             // If we were in PiP and the app is currently in the background (CREATED state),
             // it means the user explicitly closed the PiP window.
             if (wasInPip && lifecycle.currentState == androidx.lifecycle.Lifecycle.State.CREATED) {
-                // Pause instead of stop to allow resumption when reopening the app
+                android.util.Log.d("PiP", "PiP closed by user, pausing playback")
                 playerViewModel.player.pause()
             }
             wasInPip = false
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        // Final safety cleanup
-        if (isFinishing) {
-            playerViewModel.player.stop()
-            playerViewModel.player.clearMediaItems()
-            miniPlayerManager.clear()
-        }
-    }
-
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (isPlayerScreen && isPipEnabledBySetting && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            val params = PictureInPictureParams.Builder()
-                .setAspectRatio(Rational(16, 9))
-                .build()
-            enterPictureInPictureMode(params)
+        android.util.Log.d("PiP", "onUserLeaveHint: isPipEnabledBySetting=$isPipEnabledBySetting, isPlaying=${playerViewModel.player.isPlaying}")
+        
+        if (isPipEnabledBySetting && playerViewModel.player.isPlaying) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val params = PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                    .build()
+                
+                android.util.Log.d("PiP", "Entering Picture-in-Picture mode")
+                enterPictureInPictureMode(params)
+            } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                android.util.Log.d("PiP", "Entering Picture-in-Picture mode (Legacy)")
+                @Suppress("DEPRECATION")
+                enterPictureInPictureMode()
+            }
         }
     }
 }
@@ -389,79 +387,7 @@ fun PlayTubeBottomBar(navController: androidx.navigation.NavHostController) {
     }
 }
 
-@Composable
-fun MiniPlayer(
-    video: VideoItem,
-    onClick: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    var offsetX by remember { mutableStateOf(0f) }
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp)
-            .height(64.dp)
-            .offset { IntOffset(offsetX.roundToInt(), 0) }
-            .clip(RoundedCornerShape(12.dp))
-            .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragEnd = {
-                        if (offsetX > 200f || offsetX < -200f) {
-                            onDismiss()
-                        } else {
-                            offsetX = 0f
-                        }
-                    },
-                    onDragCancel = { offsetX = 0f },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        offsetX += dragAmount.x
-                    }
-                )
-            }
-            .clickable(onClick = onClick),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 8.dp,
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AsyncImage(
-                model = video.thumbnailUrl,
-                contentDescription = null,
-                modifier = Modifier
-                    .aspectRatio(16f / 9f)
-                    .clip(RoundedCornerShape(4.dp)),
-                contentScale = ContentScale.Crop,
-                filterQuality = FilterQuality.Medium
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = video.title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = video.uploaderName,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
-                )
-            }
-            IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = "Close")
-            }
-        }
-    }
-}
+// Legacy MiniPlayer removed
 
 @Composable
 fun OfflineStatusBar(status: ConnectivityObserver.Status) {

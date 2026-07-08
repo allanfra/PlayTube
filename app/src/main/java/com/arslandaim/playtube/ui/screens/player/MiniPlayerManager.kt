@@ -20,33 +20,41 @@ class MiniPlayerManager @Inject constructor() {
     private val _isMinimized = MutableStateFlow(false)
     val isMinimized: StateFlow<Boolean> = _isMinimized.asStateFlow()
 
+    private val _isExpanded = MutableStateFlow(false)
+    val isExpanded: StateFlow<Boolean> = _isExpanded.asStateFlow()
+
     fun minimize(video: VideoItem) {
         _currentVideo.value = video
         _isMinimized.value = true
+        _isExpanded.value = false
     }
 
-    fun onNewVideoSelected() {
+    fun onNewVideoSelected(video: VideoItem) {
+        _currentVideo.value = video
         _isMinimized.value = false
-        // We keep currentVideo until the new one is loaded to prevent a flicker,
-        // or clear it if the player screen handles the transition.
+        _isExpanded.value = true
     }
 
     fun toggleMinimize() {
         _isMinimized.value = !_isMinimized.value
+        _isExpanded.value = !_isMinimized.value
     }
 
     fun maximize() {
         _isMinimized.value = false
+        _isExpanded.value = true
     }
 
     fun close(onClose: () -> Unit = {}) {
         _currentVideo.value = null
         _isMinimized.value = false
+        _isExpanded.value = false
         onClose()
     }
 
     fun clear() {
         _currentVideo.value = null
         _isMinimized.value = false
+        _isExpanded.value = false
     }
 }

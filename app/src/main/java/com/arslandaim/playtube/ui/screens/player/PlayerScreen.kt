@@ -68,8 +68,10 @@ fun PlayerScreen(
     val isSubscribed by viewModel.isSubscribed.collectAsState()
     val currentQuality by viewModel.currentQuality.collectAsState()
     val isBuffering by viewModel.isBuffering.collectAsState()
-    val isMinimized by viewModel.miniPlayerManager.isMinimized.collectAsState()
     val downloadedIds by viewModel.downloadedVideoIds.collectAsState()
+    val seekAmount by viewModel.seekAmount.collectAsState()
+    val showSeekFeedback by viewModel.showSeekFeedback.collectAsState()
+    val isSeekForward by viewModel.isSeekForward.collectAsState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var showDownloadDialog by remember { mutableStateOf(false) }
@@ -78,13 +80,6 @@ fun PlayerScreen(
     var showDescriptionSheet by remember { mutableStateOf(false) }
 
     val isDownloaded = downloadedIds.contains(videoId)
-
-    // Auto-pop backstack when minimized
-    LaunchedEffect(isMinimized) {
-        if (isMinimized) {
-            onBack()
-        }
-    }
 
     // Gesture states
     val audioManager = remember { context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager }
@@ -106,7 +101,7 @@ fun PlayerScreen(
     }
 
     LaunchedEffect(videoId) {
-        viewModel.loadVideo(videoId)
+        // No auto-load here anymore, handled by loadVideo(VideoItem) in ViewModel
     }
 
     LaunchedEffect(Unit) {
@@ -118,7 +113,7 @@ fun PlayerScreen(
     DisposableEffect(Unit) {
         onDispose {
             // If the video is NOT minimized, it means the user hit back to close it.
-            // We only keep the player running if mini-player mode is active.
+            // I only keep the player running if mini-player mode is active.
             if (!viewModel.miniPlayerManager.isMinimized.value) {
                 viewModel.stopPlayback()
             }
@@ -259,9 +254,7 @@ fun PlayerScreen(
                                 onDoubleTapLeft = { viewModel.seekBackward() },
                                 onDoubleTapRight = { viewModel.seekForward() },
                                 onSingleTap = { /* PlayerView handles its own controls usually */ },
-                                onSwipeDown = {
-                                    viewModel.minimize()
-                                },
+                                onSwipeDown = onBack,
                                 onSwipeUp = {
                                     val activity = context as? Activity
                                     activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
@@ -303,11 +296,21 @@ fun PlayerScreen(
                                             setShowPreviousButton(false)
                                             @androidx.media3.common.util.UnstableApi
                                             setShowNextButton(false)
+                                            @androidx.media3.common.util.UnstableApi
+                                            setShowFastForwardButton(false)
+                                            @androidx.media3.common.util.UnstableApi
+                                            setShowRewindButton(false)
                                         }
                                     },
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
+
+                            SeekGestureOverlay(
+                                visible = showSeekFeedback,
+                                amount = seekAmount,
+                                isForward = isSeekForward
+                            )
 
                             GestureOverlay(
                                 visible = brightnessOverlayVisible,
@@ -521,7 +524,11 @@ fun PlayerScreen(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                         Spacer(modifier = Modifier.height(16.dp))
-                                        Button(onClick = { viewModel.loadVideo(videoId) }) {
+                                        Button(onClick = { 
+                                            // Ideally we should have the original VideoItem here,
+                                            // but for retry we can just use what we have in Success if it was partial
+                                            // or better yet, the caller should handle retry.
+                                        }) {
                                             Text("Retry")
                                         }
                                     }

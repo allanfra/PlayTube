@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.arslandaim.playtube.domain.model.VideoItem
 import com.arslandaim.playtube.ui.components.VideoListSkeleton
+import com.arslandaim.playtube.ui.components.DownloadSelectionDialog
 import com.arslandaim.playtube.ui.screens.search.VideoList
 
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -40,9 +41,22 @@ fun HomeScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val downloadedIds by libraryViewModel.downloadedVideoIds.collectAsState()
+    val favorites by libraryViewModel.favorites.collectAsState()
+    val favoriteIds = remember(favorites) { favorites.map { it.videoId }.toSet() }
+    
     val selectedTab by viewModel.selectedTab.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val downloadState by viewModel.downloadState.collectAsState()
+    
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        viewModel.snackbarMessage.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
     val tabs = remember { listOf("For You", "Subscriptions") }
     val categories = remember { listOf("All", "Music", "Gaming", "News", "Learning", "Trending") }
     
@@ -63,7 +77,11 @@ fun HomeScreen(
 
     val pullToRefreshState = rememberPullToRefreshState()
 
-    Column(modifier = Modifier.fillMaxSize().nestedScroll(scrollVisibilityConnection)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(scrollVisibilityConnection)
+    ) {
         SecondaryTabRow(
             selectedTabIndex = selectedTab,
             containerColor = MaterialTheme.colorScheme.surface,
@@ -266,7 +284,10 @@ fun HomeScreen(
                             VideoList(
                                 videos = videos,
                                 downloadedIds = downloadedIds,
-                                onVideoClick = onVideoClick
+                                favoriteIds = favoriteIds,
+                                onVideoClick = onVideoClick,
+                                onFavoriteClick = { viewModel.toggleFavorite(it) },
+                                onDownloadClick = { viewModel.prepareDownload(it) }
                             )
                         }
                     }
@@ -274,10 +295,52 @@ fun HomeScreen(
             }
         }
 
+        // Quick Action Dialogs
+        when (val state = downloadState) {
+            is DownloadDialogState.Loading -> {
+                AlertDialog(
+                    onDismissRequest = { viewModel.dismissDownloadDialog() },
+                    confirmButton = {},
+                    title = { Text("Fetching Streams...") },
+                    text = {
+                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                )
+            }
+            is DownloadDialogState.ShowDialog -> {
+                DownloadSelectionDialog(
+                    videoStreams = state.bundle.videoStreams,
+                    audioStreams = state.bundle.audioStreams,
+                    onDismiss = { viewModel.dismissDownloadDialog() },
+                    onDownload = { stream ->
+                        viewModel.download(
+                            video = state.video,
+                            bundle = state.bundle,
+                            url = stream.url,
+                            quality = stream.quality,
+                            format = stream.format,
+                            isAdaptive = stream.isAdaptive
+                        )
+                    }
+                )
+            }
+            else -> {}
+        }
+
         state.error?.let { error ->
             LaunchedEffect(error) {
-                // In a real app, show a snackbar here
+                snackbarHostState.showSnackbar(error)
             }
         }
+    }
+    
+    // Snackbar overlay
+    Box(modifier = Modifier.fillMaxSize()) {
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp)
+        )
     }
 }

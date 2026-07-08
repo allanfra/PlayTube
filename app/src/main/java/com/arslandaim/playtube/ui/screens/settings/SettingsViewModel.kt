@@ -35,7 +35,7 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val isPipEnabled: StateFlow<Boolean> = preferencesManager.isPipEnabled
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     fun setHistoryEnabled(enabled: Boolean) {
         viewModelScope.launch {

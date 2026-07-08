@@ -101,17 +101,13 @@ fun NavGraph(
                 libraryViewModel = libraryViewModel,
                 onBarsVisibilityChange = onBarsVisibilityChange,
                 onVideoClick = { video ->
-                    playerViewModel.miniPlayerManager.maximize()
-                    navController.navigate(Screen.Player.createRoute(video.id, video.title, video.thumbnailUrl)) {
-                        launchSingleTop = true
-                    }
+                    playerViewModel.loadVideo(video)
                 }
             )
         }
         composable(Screen.Subscriptions.route) {
-            val viewModel: LibraryViewModel = hiltViewModel()
             SubscriptionsScreen(
-                viewModel = viewModel,
+                viewModel = libraryViewModel,
                 onBarsVisibilityChange = onBarsVisibilityChange,
                 onBackClick = { navController.popBackStack() },
                 onChannelClick = { channelUrl ->
@@ -121,9 +117,8 @@ fun NavGraph(
             )
         }
         composable(Screen.SubscriptionsList.route) {
-            val viewModel: LibraryViewModel = hiltViewModel()
             SubscriptionsScreen(
-                viewModel = viewModel,
+                viewModel = libraryViewModel,
                 onBarsVisibilityChange = onBarsVisibilityChange,
                 onBackClick = { navController.popBackStack() },
                 onChannelClick = { channelUrl ->
@@ -137,10 +132,7 @@ fun NavGraph(
                 viewModel = libraryViewModel,
                 onBarsVisibilityChange = onBarsVisibilityChange,
                 onVideoClick = { video ->
-                    playerViewModel.miniPlayerManager.maximize()
-                    navController.navigate(Screen.Player.createRoute(video.id, video.title, video.thumbnailUrl)) {
-                        launchSingleTop = true
-                    }
+                    playerViewModel.loadVideo(video)
                 },
                 onSeeAllHistory = { navController.navigate(Screen.History.route) },
                 onSeeAllSubscriptions = { navController.navigate(Screen.SubscriptionsList.route) }
@@ -162,10 +154,7 @@ fun NavGraph(
                 onBarsVisibilityChange = onBarsVisibilityChange,
                 onBack = { navController.popBackStack() },
                 onVideoClick = { video ->
-                    playerViewModel.miniPlayerManager.maximize()
-                    navController.navigate(Screen.Player.createRoute(video.id, video.title, video.thumbnailUrl)) {
-                        launchSingleTop = true
-                    }
+                    playerViewModel.loadVideo(video)
                 }
             )
         }
@@ -178,10 +167,7 @@ fun NavGraph(
                 onBarsVisibilityChange = onBarsVisibilityChange,
                 onBack = { navController.popBackStack() },
                 onVideoClick = { video ->
-                    playerViewModel.miniPlayerManager.maximize()
-                    navController.navigate(Screen.Player.createRoute(video.id, video.title, video.thumbnailUrl)) {
-                        launchSingleTop = true
-                    }
+                    playerViewModel.loadVideo(video)
                 },
                 onPlaylistClick = { playlistId ->
                     navController.navigate(Screen.Playlist.createRoute(playlistId))
@@ -197,10 +183,7 @@ fun NavGraph(
                 onBarsVisibilityChange = onBarsVisibilityChange,
                 onBack = { navController.popBackStack() },
                 onVideoClick = { video ->
-                    playerViewModel.miniPlayerManager.maximize()
-                    navController.navigate(Screen.Player.createRoute(video.id, video.title, video.thumbnailUrl)) {
-                        launchSingleTop = true
-                    }
+                    playerViewModel.loadVideo(video)
                 }
             )
         }
@@ -211,56 +194,11 @@ fun NavGraph(
                 libraryViewModel = libraryViewModel,
                 onBarsVisibilityChange = onBarsVisibilityChange,
                 onVideoClick = { video ->
-                    playerViewModel.miniPlayerManager.maximize()
-                    navController.navigate(Screen.Player.createRoute(video.id, video.title, video.thumbnailUrl)) {
-                        launchSingleTop = true
-                    }
+                    playerViewModel.loadVideo(video)
                 },
                 onBack = { navController.popBackStack() }
             )
         }
-        composable(
-            route = Screen.Player.route,
-            enterTransition = {
-                onBarsVisibilityChange(false)
-                slideIntoContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Up,
-                    animationSpec = slideSpring
-                ) + fadeIn(animationSpec = tween(400))
-            },
-            exitTransition = {
-                slideOutOfContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Down,
-                    animationSpec = slideSpring
-                ) + fadeOut(animationSpec = tween(400))
-            },
-            popEnterTransition = { null },
-            popExitTransition = {
-                slideOutOfContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Down,
-                    animationSpec = slideSpring
-                ) + fadeOut(animationSpec = tween(400))
-            }
-        ) { backStackEntry ->
-            val videoId = backStackEntry.arguments?.getString("videoId") ?: ""
-            val title = backStackEntry.arguments?.getString("title")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-            val thumbnailUrl = backStackEntry.arguments?.getString("thumbnail")?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-            
-            PlayerScreen(
-                videoId = videoId,
-                initialTitle = title,
-                initialThumbnail = thumbnailUrl,
-                viewModel = playerViewModel,
-                onBack = { navController.popBackStack() },
-                onVideoClick = { video ->
-                    navController.navigate(Screen.Player.createRoute(video.id, video.title, video.thumbnailUrl)) {
-                        launchSingleTop = true
-                    }
-                },
-                onChannelClick = { channelUrl ->
-                    navController.navigate(Screen.Channel.createRoute(channelUrl))
-                }
-            )
-        }
+        // Removed separate Player composable as it's now a global overlay
     }
 }

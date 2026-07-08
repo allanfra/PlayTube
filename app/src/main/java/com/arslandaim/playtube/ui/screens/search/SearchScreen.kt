@@ -282,11 +282,14 @@ fun InitialSearchState() {
 fun VideoList(
     videos: List<VideoItem>,
     downloadedIds: Set<String> = emptySet(),
-    onVideoClick: (VideoItem) -> Unit
+    favoriteIds: Set<String> = emptySet(),
+    onVideoClick: (VideoItem) -> Unit,
+    onFavoriteClick: ((VideoItem) -> Unit)? = null,
+    onDownloadClick: ((VideoItem) -> Unit)? = null
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 16.dp),
+        contentPadding = PaddingValues(bottom = 100.dp), // Increased padding for floating bottom bar
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         items(
@@ -297,6 +300,9 @@ fun VideoList(
             VideoItemRow(
                 video = video,
                 isDownloaded = downloadedIds.contains(video.id),
+                isFavorite = favoriteIds.contains(video.id),
+                onFavoriteClick = if (onFavoriteClick != null) { { onFavoriteClick(video) } } else null,
+                onDownloadClick = if (onDownloadClick != null) { { onDownloadClick(video) } } else null,
                 onClick = { onVideoClick(video) }
             )
         }
@@ -307,8 +313,13 @@ fun VideoList(
 fun VideoItemRow(
     video: VideoItem,
     isDownloaded: Boolean = false,
+    isFavorite: Boolean = false,
+    onFavoriteClick: (() -> Unit)? = null,
+    onDownloadClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -385,15 +396,87 @@ fun VideoItemRow(
             Spacer(modifier = Modifier.width(12.dp))
             
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = video.title,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        lineHeight = 20.sp
-                    ),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        text = video.title,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            lineHeight = 20.sp
+                        ),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    
+                    if (onFavoriteClick != null || onDownloadClick != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (isFavorite) {
+                                Icon(
+                                    imageVector = Icons.Default.Favorite,
+                                    contentDescription = null,
+                                    tint = Color.Red,
+                                    modifier = Modifier.size(20.dp).padding(end = 4.dp)
+                                )
+                            }
+                            
+                            Box {
+                                IconButton(
+                                    onClick = { showMenu = true },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "More",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                
+                                DropdownMenu(
+                                    expanded = showMenu,
+                                    onDismissRequest = { showMenu = false }
+                                ) {
+                                    if (onDownloadClick != null) {
+                                        DropdownMenuItem(
+                                            text = { Text(if (isDownloaded) "Downloaded" else "Download") },
+                                            leadingIcon = { 
+                                                Icon(
+                                                    imageVector = if (isDownloaded) Icons.Default.CheckCircle else Icons.Default.Download, 
+                                                    contentDescription = null,
+                                                    tint = if (isDownloaded) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                                                ) 
+                                            },
+                                            onClick = {
+                                                showMenu = false
+                                                if (!isDownloaded) onDownloadClick()
+                                            },
+                                            enabled = !isDownloaded
+                                        )
+                                    }
+                                    if (onFavoriteClick != null) {
+                                        DropdownMenuItem(
+                                            text = { Text(if (isFavorite) "Remove from Favorites" else "Add to Favorites") },
+                                            leadingIcon = { 
+                                                Icon(
+                                                    imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, 
+                                                    contentDescription = null,
+                                                    tint = if (isFavorite) Color.Red else LocalContentColor.current
+                                                ) 
+                                            },
+                                            onClick = {
+                                                showMenu = false
+                                                onFavoriteClick()
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 
                 Spacer(modifier = Modifier.height(2.dp))
                 

@@ -7,18 +7,26 @@ package com.arslandaim.playtube.ui.screens.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.arslandaim.playtube.data.local.FavoriteEntity
 import com.arslandaim.playtube.data.local.SearchHistoryDao
+import com.arslandaim.playtube.domain.model.StreamBundle
 import com.arslandaim.playtube.domain.model.VideoItem
 import com.arslandaim.playtube.domain.repository.LibraryRepository
 import com.arslandaim.playtube.domain.repository.SearchRepository
 import com.arslandaim.playtube.domain.repository.VideoRepository
+import com.arslandaim.playtube.domain.usecase.DownloadVideoUseCase
+import com.arslandaim.playtube.domain.usecase.GetVideoStreamsUseCase
+import com.arslandaim.playtube.domain.usecase.ToggleFavoriteUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -29,7 +37,10 @@ class HomeViewModel @Inject constructor(
     private val searchRepository: SearchRepository,
     private val libraryRepository: LibraryRepository,
     private val videoRepository: VideoRepository,
-    private val searchHistoryDao: SearchHistoryDao
+    private val searchHistoryDao: SearchHistoryDao,
+    private val toggleFavoriteUseCase: ToggleFavoriteUseCase,
+    private val getVideoStreamsUseCase: GetVideoStreamsUseCase,
+    private val downloadVideoUseCase: DownloadVideoUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeState())
@@ -43,6 +54,13 @@ class HomeViewModel @Inject constructor(
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    private val _snackbarMessage = MutableSharedFlow<String>()
+    val snackbarMessage: SharedFlow<String> = _snackbarMessage.asSharedFlow()
+
+    // Download Dialog States
+    private val _downloadState = MutableStateFlow<DownloadDialogState>(DownloadDialogState.Idle)
+    val downloadState: StateFlow<DownloadDialogState> = _downloadState.asStateFlow()
 
     private val categoryCache = mutableMapOf<String, List<VideoItem>>()
     private var trendingFetchJob: Job? = null
@@ -194,6 +212,78 @@ class HomeViewModel @Inject constructor(
             )
         }
     }
+
+    fun toggleFavorite(video: VideoItem) {
+        viewModelScope.launch {
+            val isFavorite = libraryRepository.isFavorite(video.id).first()
+            toggleFavoriteUseCase(
+                FavoriteEntity(
+                    videoId = video.id,
+                    title = video.title,
+                    thumbnailUrl = video.thumbnailUrl,
+                    uploaderName = video.uploaderName
+                )
+            )
+            _snackbarMessage.emit(if (isFavorite) "Removed from Favorites" else "Added to Favorites")
+        }
+    }
+
+    fun prepareDownload(video: VideoItem) {
+        viewModelScope.launch {
+            _downloadState.value = DownloadDialogState.Loading(video)
+            getVideoStreamsUseCase(video.id)
+                .onSuccess { bundle ->
+                    _downloadState.value = DownloadDialogState.ShowDialog(video, bundle)
+                }
+                .onFailure { error ->
+                    _downloadState.value = DownloadDialogState.Idle
+                }
+        }
+    }
+
+    fun download(video: VideoItem, bundle: StreamBundle, url: String?, quality: String?, format: String?, isAdaptive: Boolean) {
+        viewModelScope.launch {
+            val audioUrl = if (isAdaptive) {
+                val isWebm = format?.contains("webm", ignoreCase = true) == true
+                val compatibleStreams = bundle.audioStreams.filter { audio ->
+                    if (isWebm) {
+                        audio.format.contains("webm", ignoreCase = true) || 
+                        audio.format.contains("opus", ignoreCase = true)
+                    } else {
+                        audio.format.contains("m4a", ignoreCase = true) || 
+                        audio.format.contains("aac", ignoreCase = true)
+                    }
+                }
+
+                compatibleStreams.filter { it.trackType == "ORIGINAL" }
+                    .maxByOrNull { it.quality.filter { c -> c.isDigit() }.toIntOrNull() ?: 0 }
+                    ?.url ?: compatibleStreams.maxByOrNull { it.quality.filter { c -> c.isDigit() }.toIntOrNull() ?: 0 }?.url
+            } else null
+
+            downloadVideoUseCase(
+                videoId = video.id,
+                url = url,
+                title = video.title,
+                thumbnailUrl = video.thumbnailUrl,
+                uploaderName = video.uploaderName,
+                quality = quality,
+                format = format,
+                audioUrl = audioUrl
+            )
+            _snackbarMessage.emit("Downloading started")
+            _downloadState.value = DownloadDialogState.Idle
+        }
+    }
+
+    fun dismissDownloadDialog() {
+        _downloadState.value = DownloadDialogState.Idle
+    }
+}
+
+sealed class DownloadDialogState {
+    object Idle : DownloadDialogState()
+    data class Loading(val video: VideoItem) : DownloadDialogState()
+    data class ShowDialog(val video: VideoItem, val bundle: StreamBundle) : DownloadDialogState()
 }
 
 data class HomeState(

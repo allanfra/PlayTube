@@ -74,6 +74,16 @@ class PlayerViewModel @Inject constructor(
     private val _playbackSpeed = MutableStateFlow(1f)
     val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
 
+    // Seek Feedback States
+    private val _seekAmount = MutableStateFlow(0)
+    val seekAmount: StateFlow<Int> = _seekAmount.asStateFlow()
+
+    private val _showSeekFeedback = MutableStateFlow(false)
+    val showSeekFeedback: StateFlow<Boolean> = _showSeekFeedback.asStateFlow()
+
+    private val _isSeekForward = MutableStateFlow(true)
+    val isSeekForward: StateFlow<Boolean> = _isSeekForward.asStateFlow()
+
     private val _snackbarMessage = MutableSharedFlow<String>()
     val snackbarMessage: SharedFlow<String> = _snackbarMessage.asSharedFlow()
 
@@ -99,19 +109,35 @@ class PlayerViewModel @Inject constructor(
         player.addListener(playerListener)
     }
 
-    fun loadVideo(videoIdOrUrl: String) {
-        if (videoIdOrUrl.isBlank()) return
-
-        val videoId = VideoUtils.extractVideoId(videoIdOrUrl)
+    fun loadVideo(video: VideoItem) {
+        val videoId = video.id
+        if (videoId.isBlank()) return
 
         // If it's the same video and it's already playing/buffering, don't reload
-        if (currentVideoId == videoId && player.playbackState != Player.STATE_IDLE && player.playbackState != Player.STATE_ENDED) {
+        // Exception: If the current state is Error, we should allow a retry
+        if (currentVideoId == videoId && 
+            _uiState.value !is PlayerUiState.Error &&
+            player.playbackState != Player.STATE_IDLE && 
+            player.playbackState != Player.STATE_ENDED) {
+
             _uiState.value = PlayerUiState.Success(
-                currentBundle?.title ?: "",
-                currentBundle?.uploaderName ?: "",
-                currentBundle!!
+                currentBundle?.title ?: video.title,
+                currentBundle?.uploaderName ?: video.uploaderName,
+                currentBundle ?: StreamBundle(
+                    videoStreams = emptyList(),
+                    audioStreams = emptyList(),
+                    title = video.title,
+                    uploaderName = video.uploaderName,
+                    uploaderUrl = video.uploaderUrl,
+                    uploaderThumbnailUrl = null,
+                    description = null,
+                    viewCount = video.viewCount,
+                    uploadDate = video.uploadDate,
+                    thumbnailUrl = video.thumbnailUrl
+                )
             )
-            player.playWhenReady = true // Ensure it keeps playing if it was paused/stopped somehow
+            player.playWhenReady = true
+            miniPlayerManager.maximize()
             return
         }
         
@@ -121,7 +147,7 @@ class PlayerViewModel @Inject constructor(
         // Reset player for new content
         player.stop()
         player.clearMediaItems()
-        miniPlayerManager.maximize() // Ensure UI is maximized if we are loading a new video manually
+        miniPlayerManager.onNewVideoSelected(video)
         
         loadingJob = viewModelScope.launch {
             _uiState.value = PlayerUiState.Loading
@@ -326,12 +352,36 @@ class PlayerViewModel @Inject constructor(
         player.setPlaybackSpeed(speed)
     }
 
+    private var seekJob: Job? = null
+
+    fun performSeek(forward: Boolean) {
+        seekJob?.cancel()
+        
+        if (_isSeekForward.value != forward || !_showSeekFeedback.value) {
+            _seekAmount.value = 10
+        } else {
+            _seekAmount.value += 10
+        }
+        
+        _isSeekForward.value = forward
+        _showSeekFeedback.value = true
+
+        val seekTime = if (forward) 10000L else -10000L
+        player.seekTo(player.currentPosition + seekTime)
+
+        seekJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(800)
+            _showSeekFeedback.value = false
+            _seekAmount.value = 0
+        }
+    }
+
     fun seekForward() {
-        player.seekTo(player.currentPosition + 10000)
+        performSeek(true)
     }
 
     fun seekBackward() {
-        player.seekTo(player.currentPosition - 10000)
+        performSeek(false)
     }
 
     fun minimize() {
@@ -354,11 +404,13 @@ class PlayerViewModel @Inject constructor(
     fun stopPlayback() {
         loadingJob?.cancel()
         loadingJob = null
+        player.pause()
         player.stop()
         player.clearMediaItems()
         currentVideoId = null
         currentBundle = null
         _uiState.value = PlayerUiState.Loading
+        _isBuffering.value = false
     }
 
     override fun onCleared() {

@@ -30,7 +30,7 @@ class PreferencesManager @Inject constructor(@ApplicationContext context: Contex
     }
 
     val isPipEnabled: Flow<Boolean> = dataStore.data.map { preferences ->
-        preferences[PIP_ENABLED] ?: true
+        preferences[PIP_ENABLED] ?: false
     }
 
     suspend fun setHistoryEnabled(enabled: Boolean) {
