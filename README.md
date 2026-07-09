@@ -1,7 +1,7 @@
 <table align="center">
   <tr>
     <td>
-      <img src="fastlane/metadata/android/en-US/Images/icon.png" alt="PlayTube Icon" width="50">
+      <img src="fastlane/metadata/android/en-US/images/icon.png" alt="PlayTube Icon" width="50">
     </td>
     <td>
       <h1 style="margin: 0;">PlayTube</h1>
