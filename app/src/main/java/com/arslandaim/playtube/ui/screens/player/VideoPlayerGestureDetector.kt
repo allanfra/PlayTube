@@ -24,10 +24,6 @@ fun VideoPlayerGestureDetector(
     onSingleTap: () -> Unit,
     onSwipeDown: () -> Unit,
     onSwipeUp: () -> Unit,
-    onDragStart: () -> Unit = {},
-    onDragEnd: () -> Unit = {},
-    onDragCancel: () -> Unit = {},
-    onVerticalSwipeRight: (Float) -> Unit = {},
     content: @Composable () -> Unit
 ) {
     Box(
@@ -80,27 +76,15 @@ fun VideoPlayerGestureDetector(
                     onDragStart = { offset ->
                         totalDrag = 0f
                         dragStartX = offset.x
-                        onDragStart()
                     },
                     onVerticalDrag = { change, dragAmount ->
                         change.consume()
                         totalDrag += dragAmount
-                        
-                        val screenHeight = size.height
-                        val screenWidth = size.width
-                        val dragPercentage = -dragAmount / screenHeight
-                        val sideMargin = screenWidth * 0.30f // 30% from each side
-                        
-                        if (change.position.x > screenWidth - sideMargin) {
-                            onVerticalSwipeRight(dragPercentage)
-                        }
                     },
                     onDragEnd = {
                         val screenWidth = size.width
                         val sideMargin = screenWidth * 0.30f
-                        
-                        // Only trigger minimize/maximize if the drag started in the center "dead zone"
-                        // to avoid conflicts with volume/brightness adjustments on the sides.
+
                         val startedInCenter = dragStartX in sideMargin..(screenWidth - sideMargin)
 
                         if (startedInCenter) {
@@ -110,10 +94,6 @@ fun VideoPlayerGestureDetector(
                                 onSwipeUp()
                             }
                         }
-                        onDragEnd()
-                    },
-                    onDragCancel = {
-                        onDragCancel()
                     }
                 )
             }

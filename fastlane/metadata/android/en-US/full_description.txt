@@ -4,7 +4,7 @@ Key Features:
 - Background Play
 - Picture-in-Picture Support
 - Highest available video quality downloads
-- Built-in video volume/brightness gestures
+- Built-in video seek gestures
 - Push up & down landscape/portrait modes
 - Subscription Management
 - Search History & Privacy

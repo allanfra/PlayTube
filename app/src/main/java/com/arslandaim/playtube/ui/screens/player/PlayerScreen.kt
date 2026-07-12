@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -46,7 +45,6 @@ import com.arslandaim.playtube.domain.model.VideoItem
 import com.arslandaim.playtube.ui.screens.search.VideoItemRow
 import com.arslandaim.playtube.utils.VideoUtils
 import kotlinx.coroutines.delay
-import android.media.AudioManager
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 
@@ -78,12 +76,6 @@ fun PlayerScreen(
     var showDescriptionSheet by remember { mutableStateOf(false) }
 
     val isDownloaded = downloadedIds.contains(videoId)
-
-    // Gesture states
-    val audioManager = remember { context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager }
-    var volumeOverlayVisible by remember { mutableStateOf(false) }
-    var volumeLevel by remember { mutableFloatStateOf(0f) }
-    var isDragging by remember { mutableStateOf(false) }
 
     LaunchedEffect(videoId) {
         // No auto-load here anymore, handled by loadVideo(VideoItem) in ViewModel
@@ -243,23 +235,7 @@ fun PlayerScreen(
                                 onSwipeUp = {
                                     val activity = context as? Activity
                                     activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                                },
-                                onDragStart = {
-                                    isDragging = true
-                                    val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                                    val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-                                    volumeLevel = currentVolume.toFloat() / maxVolume
-                                },
-                                onVerticalSwipeRight = { dragPercentage ->
-                                    volumeLevel = (volumeLevel + dragPercentage).coerceIn(0f, 1f)
-                                    val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                                    val newVolume = (volumeLevel * maxVolume).toInt()
-                                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, 0)
-
-                                    volumeOverlayVisible = true
-                                },
-                                onDragEnd = { isDragging = false },
-                                onDragCancel = { isDragging = false }
+                                }
                             ) {
                                 AndroidView(
                                     factory = {
@@ -285,19 +261,6 @@ fun PlayerScreen(
                                 amount = seekAmount,
                                 isForward = isSeekForward
                             )
-
-                            GestureOverlay(
-                                visible = volumeOverlayVisible,
-                                icon = Icons.Default.VolumeUp,
-                                text = "${(volumeLevel * 100).toInt()}%"
-                            )
-
-                            LaunchedEffect(volumeOverlayVisible, isDragging) {
-                                if (volumeOverlayVisible && !isDragging) {
-                                    delay(1500)
-                                    volumeOverlayVisible = false
-                                }
-                            }
 
                             if (isBuffering) {
                                 CircularProgressIndicator(

@@ -36,7 +36,7 @@
 - Background Play
 - Picture-in-Picture Support
 - Highest available video quality downloads
-- Built-in video volume/brightness and Seek forward/backward gestures
+- Built-in video seek forward/backward gestures
 - Push up & down landscape/portrait modes
 - Subscription Management
 - Search History & Privacy
