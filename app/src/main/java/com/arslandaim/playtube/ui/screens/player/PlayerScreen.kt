@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.BrightnessLow
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
@@ -48,7 +47,6 @@ import com.arslandaim.playtube.ui.screens.search.VideoItemRow
 import com.arslandaim.playtube.utils.VideoUtils
 import kotlinx.coroutines.delay
 import android.media.AudioManager
-import android.provider.Settings
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 
@@ -83,22 +81,9 @@ fun PlayerScreen(
 
     // Gesture states
     val audioManager = remember { context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager }
-    var brightnessOverlayVisible by remember { mutableStateOf(false) }
     var volumeOverlayVisible by remember { mutableStateOf(false) }
-    var brightnessLevel by remember { mutableFloatStateOf(0f) }
     var volumeLevel by remember { mutableFloatStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
-
-    // Initialize brightnessLevel
-    LaunchedEffect(Unit) {
-        val activity = context as? Activity
-        val layoutParams = activity?.window?.attributes
-        brightnessLevel = if (layoutParams?.screenBrightness ?: -1f < 0) {
-            Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255f
-        } else {
-            layoutParams?.screenBrightness ?: 0.5f
-        }
-    }
 
     LaunchedEffect(videoId) {
         // No auto-load here anymore, handled by loadVideo(VideoItem) in ViewModel
@@ -265,24 +250,13 @@ fun PlayerScreen(
                                     val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
                                     volumeLevel = currentVolume.toFloat() / maxVolume
                                 },
-                                onVerticalSwipeLeft = { dragPercentage ->
-                                    brightnessLevel = (brightnessLevel + dragPercentage).coerceIn(0f, 1f)
-                                    val activity = context as? Activity
-                                    val layoutParams = activity?.window?.attributes
-                                    layoutParams?.screenBrightness = brightnessLevel
-                                    activity?.window?.attributes = layoutParams
-                                    
-                                    brightnessOverlayVisible = true
-                                    volumeOverlayVisible = false
-                                },
                                 onVerticalSwipeRight = { dragPercentage ->
                                     volumeLevel = (volumeLevel + dragPercentage).coerceIn(0f, 1f)
                                     val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
                                     val newVolume = (volumeLevel * maxVolume).toInt()
                                     audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, 0)
-                                    
+
                                     volumeOverlayVisible = true
-                                    brightnessOverlayVisible = false
                                 },
                                 onDragEnd = { isDragging = false },
                                 onDragCancel = { isDragging = false }
@@ -313,23 +287,10 @@ fun PlayerScreen(
                             )
 
                             GestureOverlay(
-                                visible = brightnessOverlayVisible,
-                                icon = Icons.Default.BrightnessLow,
-                                text = "${(brightnessLevel * 100).toInt()}%"
-                            )
-                            
-                            GestureOverlay(
                                 visible = volumeOverlayVisible,
                                 icon = Icons.Default.VolumeUp,
                                 text = "${(volumeLevel * 100).toInt()}%"
                             )
-
-                            LaunchedEffect(brightnessOverlayVisible, isDragging) {
-                                if (brightnessOverlayVisible && !isDragging) {
-                                    delay(1500)
-                                    brightnessOverlayVisible = false
-                                }
-                            }
 
                             LaunchedEffect(volumeOverlayVisible, isDragging) {
                                 if (volumeOverlayVisible && !isDragging) {

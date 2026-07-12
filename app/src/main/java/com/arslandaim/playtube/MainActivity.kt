@@ -123,14 +123,15 @@ class MainActivity : ComponentActivity() {
 
                 val mainRoutes = remember { listOf(Screen.Home.route, Screen.Subscriptions.route, Screen.Library.route) }
                 val isMainRoute = currentRoute in mainRoutes
-                
-                LaunchedEffect(currentRoute) {
-                    if (isMainRoute) {
+                val isVideoOverlayActive = currentVideo != null
+
+                LaunchedEffect(currentRoute, currentVideo) {
+                    if (isMainRoute || isVideoOverlayActive) {
                         isBarsVisible = true
                     }
                 }
 
-                val showBars = isMainRoute && !isInPipModeState.value
+                val showBars = (isMainRoute || isVideoOverlayActive) && !isInPipModeState.value
                 
                 // Animate visibility with a natural spring
                 val barsVisibilityProgress by animateFloatAsState(

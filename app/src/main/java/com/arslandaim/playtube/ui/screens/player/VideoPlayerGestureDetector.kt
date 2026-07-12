@@ -27,7 +27,6 @@ fun VideoPlayerGestureDetector(
     onDragStart: () -> Unit = {},
     onDragEnd: () -> Unit = {},
     onDragCancel: () -> Unit = {},
-    onVerticalSwipeLeft: (Float) -> Unit = {},
     onVerticalSwipeRight: (Float) -> Unit = {},
     content: @Composable () -> Unit
 ) {
@@ -92,9 +91,7 @@ fun VideoPlayerGestureDetector(
                         val dragPercentage = -dragAmount / screenHeight
                         val sideMargin = screenWidth * 0.30f // 30% from each side
                         
-                        if (change.position.x < sideMargin) {
-                            onVerticalSwipeLeft(dragPercentage)
-                        } else if (change.position.x > screenWidth - sideMargin) {
+                        if (change.position.x > screenWidth - sideMargin) {
                             onVerticalSwipeRight(dragPercentage)
                         }
                     },
